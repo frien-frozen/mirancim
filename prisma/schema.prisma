@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id       String @id @default(cuid())
+  name     String
+  username String @unique
+  password String
+  role     Role   @default(TEACHER)
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+}
+
+model Group {
+  id        String          @id @default(cuid())
+  name      String
+  schedules GroupSchedule[]
+  students  Student[]
+  createdAt DateTime        @default(now())
+}
+
+model GroupSchedule {
+  id        String   @id @default(cuid())
+  groupId   String
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  dayOfWeek Int      // 0: Har kuni, 1: Dushanba, ..., 7: Yakshanba
+  startTime String   // e.g. "14:00"
+  endTime   String   // e.g. "16:00"
+
+  @@index([groupId])
+}
+
+model Student {
+  id          String       @id @default(cuid())
+  name        String
+  phone       String
+  parentPhone String?
+  telegram    String?
+  tuitionFee  Int
+  isActive    Boolean      @default(true)
+  groupId     String
+  group       Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  attendances Attendance[]
+  payments    Payment[]
+  createdAt   DateTime     @default(now())
+
+  @@index([groupId])
+}
+
+model Attendance {
+  id        String   @id @default(cuid())
+  date      DateTime @db.Date
+  isPresent Boolean  @default(false)
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([studentId, date])
+  @@index([date])
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  month     DateTime @db.Date
+  amount    Int
+  isPaid    Boolean  @default(false)
+  paidAt    DateTime?
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([studentId, month])
+  @@index([month])
+}
+
