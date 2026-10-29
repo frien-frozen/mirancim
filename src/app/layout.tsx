@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Wix_Madefor_Text, DM_Serif_Display, Inter } from "next/font/google";
 import "./globals.css";
 import { AppProvider } from "@/lib/app-context";
@@ -30,6 +30,13 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Mirancim Platformu",
   description: "Xususiy repetitorlar uchun boshqaruv tizimi / Özel Ders Yönetim Sistemi",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({

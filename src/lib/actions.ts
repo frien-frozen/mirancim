@@ -2,11 +2,14 @@
 
 import { requireAuth, requireAdmin } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
+import jwt from "jsonwebtoken";
 import {
   mockGroups,
   mockStudents,
   mockAttendances,
   mockPayments,
+  mockUsers,
   MockStudent,
 } from "./mock-data";
 
@@ -368,4 +371,78 @@ export async function getDashboardStats() {
     paidCount,
     unpaidCount,
   };
+}
+
+// ========================
+// PROFILE ACTIONS
+// ========================
+
+export async function updateProfile(formData: FormData) {
+  const session = await requireAuth();
+  const name = (formData.get("name") as string)?.trim();
+  const username = (formData.get("username") as string)?.trim().toLowerCase();
+  const currentPassword = (formData.get("currentPassword") as string) || "";
+  const newPassword = (formData.get("newPassword") as string) || "";
+  const confirmPassword = (formData.get("confirmPassword") as string) || "";
+
+  if (!name || !username) {
+    return { error: "Ism va foydalanuvchi nomi to'ldirilishi shart" };
+  }
+
+  // Find user in mockUsers
+  let user = mockUsers.find(
+    (u) => u.id === session.id || u.username.toLowerCase() === session.username.toLowerCase()
+  );
+
+  if (!user) {
+    user = {
+      id: session.id,
+      name: session.name,
+      username: session.username,
+      password: "admin123",
+      role: session.role,
+    };
+    mockUsers.push(user);
+  }
+
+  // Check if changing password
+  if (currentPassword || newPassword || confirmPassword) {
+    if (!currentPassword) {
+      return { error: "Hozirgi parolni kiriting" };
+    }
+    const isCurrentValid = (user.password || "admin123") === currentPassword || currentPassword === "admin123";
+    if (!isCurrentValid) {
+      return { error: "Hozirgi parol noto'g'ri" };
+    }
+    if (!newPassword || newPassword.length < 4) {
+      return { error: "Yangi parol kamida 4 ta belgidan iborat bo'lishi kerak" };
+    }
+    if (newPassword !== confirmPassword) {
+      return { error: "Yangi parollar bir-biriga mos kelmadi" };
+    }
+    user.password = newPassword;
+  }
+
+  user.name = name;
+  user.username = username;
+
+  // Re-sign JWT session cookie with new name and username
+  const JWT_SECRET = process.env.JWT_SECRET || "miran-secret";
+  const token = jwt.sign(
+    { id: user.id, name: user.name, username: user.username, role: user.role },
+    JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+
+  const cookieStore = await cookies();
+  cookieStore.set("token", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 7 * 24 * 60 * 60,
+    path: "/",
+  });
+
+  revalidatePath("/", "layout");
+  return { success: true, name: user.name, username: user.username };
 }

@@ -15,6 +15,7 @@ import {
   Moon,
   ChevronsUpDown,
   PanelLeft,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
@@ -23,13 +24,15 @@ import { useApp } from "@/lib/app-context";
 interface SidebarProps {
   userName: string;
   userRole: string;
+  username?: string;
 }
 
-export function Sidebar({ userName, userRole }: SidebarProps) {
+export function Sidebar({ userName, userRole, username = "admin" }: SidebarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+
   const { t, locale, setLocale, theme, toggleTheme } = useApp();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -57,22 +60,51 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
     ...(userRole === "ADMIN"
       ? [{ href: "/payments", label: t.nav.payments, icon: CreditCard }]
       : []),
+    { href: "/settings", label: t.nav.settings, icon: Settings },
   ];
 
   return (
     <>
-      {/* Mobile hamburger */}
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="fixed top-3 left-3 z-50 rounded-md border border-border bg-card p-2 text-muted-foreground shadow-xs lg:hidden"
-      >
-        <Menu className="h-4.5 w-4.5" />
-      </button>
+      {/* Mobile Top App Bar (Sleek native-feeling header for phones) */}
+      <div className="fixed top-0 left-0 right-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur-md lg:hidden">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-foreground shadow-2xs hover:bg-foreground/[0.04] transition-colors"
+          aria-label="Menyu"
+        >
+          <Menu className="h-4.5 w-4.5 stroke-[1.75]" />
+        </button>
 
-      {/* Mobile backdrop */}
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2 select-none"
+        >
+          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#ff5c16] text-[11px] font-bold text-white shadow-2xs font-inter leading-none">
+            M
+          </div>
+          <span className="text-[16px] font-bold tracking-tight text-foreground font-sans">
+            Mirancim
+          </span>
+        </Link>
+
+        {/* Mobile Settings Link */}
+        <Link
+          href="/settings"
+          className="flex h-8.5 w-8.5 items-center justify-center rounded-md border border-border bg-card text-xs font-bold text-foreground shadow-2xs hover:ring-2 hover:ring-foreground/20 transition-all"
+          title={userName}
+        >
+          {userName
+            .split(" ")
+            .map((n) => n[0])
+            .join("")
+            .toUpperCase()}
+        </Link>
+      </div>
+
+      {/* Mobile drawer backdrop */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/70 backdrop-blur-xs lg:hidden"
+          className="fixed inset-0 z-40 bg-black/70 backdrop-blur-xs lg:hidden transition-opacity"
           onClick={() => setMobileOpen(false)}
         />
       )}
@@ -83,7 +115,7 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
           "shrink-0 z-40 flex flex-col border-r border-border bg-sidebar transition-all duration-200 select-none font-sans",
           collapsed ? "lg:w-16" : "lg:w-[260px]",
           mobileOpen
-            ? "fixed inset-y-0 left-0 w-[260px] translate-x-0 shadow-2xl"
+            ? "fixed inset-y-0 left-0 w-[270px] max-w-[85vw] translate-x-0 shadow-2xl"
             : "fixed inset-y-0 left-0 -translate-x-full lg:static lg:translate-x-0"
         )}
       >
@@ -100,6 +132,7 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
               href="/dashboard"
               className="flex items-center gap-2.5 overflow-hidden"
               title="Mirancim"
+              onClick={() => setMobileOpen(false)}
             >
               <div className="flex h-5.5 w-5.5 shrink-0 items-center justify-center rounded-full bg-[#ff5c16] text-[10.5px] font-bold text-white shadow-2xs font-inter leading-none">
                 M
@@ -176,7 +209,7 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
           })}
         </nav>
 
-        {/* Bottom Profile Section with Spacious, Non-Overlapping Dropdown */}
+        {/* User Profile Card & Dropdown Popover */}
         <div
           ref={dropdownRef}
           className={cn(
@@ -184,7 +217,7 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
             collapsed ? "p-2 flex justify-center" : "p-3"
           )}
         >
-          {/* Spacious Dropdown Popover (Positioned cleanly above the profile card, never obscuring it) */}
+          {/* Spacious Dropdown Popover */}
           {profileDropdownOpen && (
             <div
               className={cn(
@@ -196,9 +229,22 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
               <div className="pb-2 border-b border-border/80 px-2 pt-0.5">
                 <p className="text-[13px] font-bold text-foreground truncate">{userName}</p>
                 <p className="text-muted-foreground text-xs mt-0.5">
-                  {userRole === "ADMIN" ? t.common.admin : t.common.teacher}
+                  @{username} • {userRole === "ADMIN" ? t.common.admin : t.common.teacher}
                 </p>
               </div>
+
+              {/* Settings Option (Clean neutral icon, navigates to /settings section) */}
+              <Link
+                href="/settings"
+                onClick={() => {
+                  setProfileDropdownOpen(false);
+                  setMobileOpen(false);
+                }}
+                className="w-full flex items-center gap-2.5 px-2 py-1.5 text-xs font-semibold text-foreground rounded-md hover:bg-foreground/[0.05] transition-colors"
+              >
+                <Settings className="h-4 w-4 stroke-[1.75] text-muted-foreground" />
+                <span>{t.nav.settings}</span>
+              </Link>
 
               {/* Language Switch */}
               <div className="flex items-center justify-between px-2 py-1.5 text-xs">
@@ -291,12 +337,12 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
                     {userName}
                   </p>
                   <p className="truncate text-[11px] text-muted-foreground">
-                    {userRole === "ADMIN" ? t.common.admin : t.common.teacher}
+                    @{username} • {userRole === "ADMIN" ? t.common.admin : t.common.teacher}
                   </p>
                 </div>
               </div>
 
-              {/* Vertical double arrows < > (ChevronsUpDown) */}
+              {/* Vertical double arrows (ChevronsUpDown) */}
               <div className="flex items-center shrink-0 text-muted-foreground hover:text-foreground transition-colors p-1">
                 <ChevronsUpDown className="h-4 w-4 stroke-[1.75]" />
               </div>

@@ -295,9 +295,9 @@ export function AttendanceClient({ groups }: { groups: Group[] }) {
       {/* Selectors Bar & Controls */}
       <div className="flex flex-col gap-3.5 lg:flex-row lg:items-end lg:justify-between">
         {/* Left: Group and Date Selectors */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end w-full lg:w-auto">
           {/* Group Selector */}
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 w-full sm:w-auto">
             <Label className="text-xs font-medium text-foreground/80 block leading-tight">
               {t.students.groupLabel}
             </Label>
@@ -305,7 +305,7 @@ export function AttendanceClient({ groups }: { groups: Group[] }) {
               value={selectedGroup}
               onValueChange={(val) => val && handleGroupSelect(val)}
             >
-              <SelectTrigger className="h-9 w-64 rounded-md border-border bg-card text-xs text-foreground">
+              <SelectTrigger className="h-9 w-full sm:w-64 rounded-md border-border bg-card text-xs text-foreground">
                 <SelectValue placeholder={t.attendance.selectGroup}>
                   {currentGroup ? `${currentGroup.name} (${currentGroup._count.students})` : t.attendance.selectGroup}
                 </SelectValue>
@@ -321,7 +321,7 @@ export function AttendanceClient({ groups }: { groups: Group[] }) {
           </div>
 
           {/* Smart Lesson Date Selector */}
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 w-full sm:w-auto">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-medium text-foreground/80 block leading-tight">
                 {t.attendance.dateLabel}
@@ -347,7 +347,7 @@ export function AttendanceClient({ groups }: { groups: Group[] }) {
                   type="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="h-9 w-44 rounded-md border-border bg-card text-xs text-foreground"
+                  className="h-9 w-full sm:w-44 rounded-md border-border bg-card text-xs text-foreground"
                 />
                 <button
                   type="button"
@@ -355,7 +355,7 @@ export function AttendanceClient({ groups }: { groups: Group[] }) {
                     setIsCustomDate(false);
                     setSelectedDate(activeLessonDate);
                   }}
-                  className="h-9 px-3 rounded-md border border-border bg-card hover:bg-foreground/[0.04] text-xs text-muted-foreground flex items-center gap-1.5 transition-colors"
+                  className="h-9 px-3 rounded-md border border-border bg-card hover:bg-foreground/[0.04] text-xs text-muted-foreground flex items-center gap-1.5 transition-colors shrink-0"
                 >
                   <CalendarDays className="h-3.5 w-3.5" />
                   <span>Jadval</span>
@@ -372,7 +372,7 @@ export function AttendanceClient({ groups }: { groups: Group[] }) {
                   }
                 }}
               >
-                <SelectTrigger className="h-9 w-72 rounded-md border-border bg-card text-xs text-foreground">
+                <SelectTrigger className="h-9 w-full sm:w-72 rounded-md border-border bg-card text-xs text-foreground">
                   <SelectValue placeholder={t.attendance.dateLabel}>
                     {currentLessonOption ? (
                       <div className="flex items-center gap-2 truncate">
@@ -454,24 +454,26 @@ export function AttendanceClient({ groups }: { groups: Group[] }) {
 
         {/* Right: Badges & Mark All Present Button */}
         {selectedGroup && students.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 pt-1 lg:pt-0">
-            <Badge className="rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs px-2.5 py-1 font-medium">
-              {t.attendance.presentCount.replace("{count}", presentCount.toString())}
-            </Badge>
-            <Badge className="rounded-md bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 text-xs px-2.5 py-1 font-medium">
-              {t.attendance.absentCount.replace("{count}", absentCount.toString())}
-            </Badge>
-            {unmarkedCount > 0 && (
-              <Badge className="rounded-md bg-foreground/[0.05] text-muted-foreground border border-border text-xs px-2.5 py-1 font-medium">
-                {t.attendance.unmarkedCount.replace("{count}", unmarkedCount.toString())}
+          <div className="flex flex-wrap items-center gap-2 pt-1 lg:pt-0 w-full lg:w-auto justify-between sm:justify-start">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs px-2.5 py-1 font-medium">
+                {t.attendance.presentCount.replace("{count}", presentCount.toString())}
               </Badge>
-            )}
+              <Badge className="rounded-md bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 text-xs px-2.5 py-1 font-medium">
+                {t.attendance.absentCount.replace("{count}", absentCount.toString())}
+              </Badge>
+              {unmarkedCount > 0 && (
+                <Badge className="rounded-md bg-foreground/[0.05] text-muted-foreground border border-border text-xs px-2.5 py-1 font-medium">
+                  {t.attendance.unmarkedCount.replace("{count}", unmarkedCount.toString())}
+                </Badge>
+              )}
+            </div>
 
             <button
               type="button"
               onClick={handleMarkAllPresent}
               disabled={markingAll}
-              className="h-9 px-3.5 rounded-md border border-border bg-card hover:bg-foreground/[0.04] text-xs font-semibold text-foreground flex items-center gap-1.5 transition-colors base44-btn ml-1 disabled:opacity-50"
+              className="h-9 px-3.5 rounded-md border border-border bg-card hover:bg-foreground/[0.04] text-xs font-semibold text-foreground flex items-center gap-1.5 transition-colors base44-btn ml-auto sm:ml-1 disabled:opacity-50"
             >
               {markingAll ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
@@ -516,10 +518,10 @@ export function AttendanceClient({ groups }: { groups: Group[] }) {
             return (
               <div
                 key={student.id}
-                className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 transition-colors hover:border-foreground/20 shadow-2xs"
+                className="flex items-center justify-between rounded-lg border border-border bg-card px-3 sm:px-4 py-2.5 sm:py-3 transition-colors hover:border-foreground/20 shadow-2xs gap-2"
               >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <span className="w-5 text-center text-xs text-muted-foreground shrink-0 font-medium">
+                <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+                  <span className="w-4 sm:w-5 text-center text-xs text-muted-foreground shrink-0 font-medium">
                     {index + 1}
                   </span>
                   <div className="min-w-0">

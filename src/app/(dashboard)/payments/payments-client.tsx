@@ -207,10 +207,10 @@ export function PaymentsClient({
           <p className="text-[12px] font-medium text-muted-foreground">
             {t.payments.collectedLabel}
           </p>
-          <p className="mt-3 text-[28px] sm:text-[32px] font-bold text-foreground font-sans tracking-tight leading-none">
+          <p className="mt-3 text-[24px] xs:text-[28px] sm:text-[32px] font-bold text-foreground font-sans tracking-tight leading-none truncate">
             {formatCurrency(totalCollected)}
           </p>
-          <p className="mt-1.5 text-xs text-muted-foreground">
+          <p className="mt-1.5 text-xs text-muted-foreground truncate">
             {t.payments.expectedSub.replace("{amount}", formatCurrency(totalExpected))}
           </p>
         </div>
@@ -218,7 +218,7 @@ export function PaymentsClient({
           <p className="text-[12px] font-medium text-muted-foreground">
             {t.payments.paidStudentsLabel}
           </p>
-          <p className="mt-3 text-[28px] sm:text-[32px] font-bold text-emerald-600 dark:text-emerald-400 font-sans tracking-tight leading-none">
+          <p className="mt-3 text-[24px] xs:text-[28px] sm:text-[32px] font-bold text-emerald-600 dark:text-emerald-400 font-sans tracking-tight leading-none">
             {paidCount}
           </p>
           <p className="mt-1.5 text-xs text-muted-foreground">
@@ -229,10 +229,10 @@ export function PaymentsClient({
           <p className="text-[12px] font-medium text-muted-foreground">
             {t.payments.unpaidStudentsLabel}
           </p>
-          <p className="mt-3 text-[28px] sm:text-[32px] font-bold text-red-600 dark:text-red-400 font-sans tracking-tight leading-none">
+          <p className="mt-3 text-[24px] xs:text-[28px] sm:text-[32px] font-bold text-red-600 dark:text-red-400 font-sans tracking-tight leading-none">
             {unpaidCount}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground truncate">
             {t.payments.outstandingSub.replace(
               "{amount}",
               formatCurrency(Math.max(0, totalExpected - totalCollected))
@@ -243,9 +243,9 @@ export function PaymentsClient({
 
       {/* Toolbar & Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
           {/* Search */}
-          <div className="relative w-48 sm:w-56">
+          <div className="relative w-full sm:w-52">
             <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground stroke-[1.75]" />
             <Input
               placeholder={t.payments.searchPlaceholder}
@@ -260,28 +260,30 @@ export function PaymentsClient({
             type="month"
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
-            className="h-8.5 w-36 rounded-md border-border bg-card text-xs text-foreground"
+            className="h-8.5 w-full xs:w-36 rounded-md border-border bg-card text-xs text-foreground"
           />
 
           {/* Classes/Groups Filter with Ticks */}
-          <div className="relative" ref={filterRef}>
+          <div className="relative w-full xs:w-auto" ref={filterRef}>
             <button
               type="button"
               onClick={() => setFilterOpen((prev) => !prev)}
               className={cn(
-                "flex h-8.5 items-center gap-1.5 rounded-md border border-border bg-card px-3 text-xs font-medium text-foreground transition-colors hover:bg-foreground/[0.04] outline-none select-none",
+                "flex h-8.5 w-full xs:w-auto items-center justify-between xs:justify-start gap-1.5 rounded-md border border-border bg-card px-3 text-xs font-medium text-foreground transition-colors hover:bg-foreground/[0.04] outline-none select-none",
                 selectedGroupIds.length !== availableGroups.length &&
                   "border-[#ff5c16]/50 text-[#ff5c16] bg-[#ff5c16]/5",
                 filterOpen && "ring-1 ring-foreground/20"
               )}
             >
-              <SlidersHorizontal className="h-3.5 w-3.5 stroke-[1.75]" />
-              <span>{t.payments.filterClasses}</span>
-              {selectedGroupIds.length !== availableGroups.length && (
-                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ff5c16] px-1 text-[10px] font-bold text-white leading-none">
-                  {selectedGroupIds.length}
-                </span>
-              )}
+              <div className="flex items-center gap-1.5">
+                <SlidersHorizontal className="h-3.5 w-3.5 stroke-[1.75]" />
+                <span>{t.payments.filterClasses}</span>
+                {selectedGroupIds.length !== availableGroups.length && (
+                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ff5c16] px-1 text-[10px] font-bold text-white leading-none">
+                    {selectedGroupIds.length}
+                  </span>
+                )}
+              </div>
               <ChevronDown
                 className={cn(
                   "h-3 w-3 text-muted-foreground transition-transform duration-150 ml-0.5",
@@ -365,10 +367,10 @@ export function PaymentsClient({
         </div>
 
         {/* Filter Segmented Control */}
-        <div className="flex items-center rounded-md bg-foreground/[0.04] border border-border p-0.5">
+        <div className="flex w-full sm:w-auto items-center justify-between sm:justify-start rounded-md bg-foreground/[0.04] border border-border p-0.5">
           <button
             onClick={() => setFilter("all")}
-            className={`rounded px-3 py-1 text-xs font-semibold transition-colors base44-btn ${
+            className={`flex-1 sm:flex-none text-center rounded px-3 py-1 text-xs font-semibold transition-colors base44-btn ${
               filter === "all"
                 ? "bg-card text-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground"
@@ -378,7 +380,7 @@ export function PaymentsClient({
           </button>
           <button
             onClick={() => setFilter("paid")}
-            className={`rounded px-3 py-1 text-xs font-semibold transition-colors base44-btn ${
+            className={`flex-1 sm:flex-none text-center rounded px-3 py-1 text-xs font-semibold transition-colors base44-btn ${
               filter === "paid"
                 ? "bg-card text-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground"
@@ -388,7 +390,7 @@ export function PaymentsClient({
           </button>
           <button
             onClick={() => setFilter("unpaid")}
-            className={`rounded px-3 py-1 text-xs font-semibold transition-colors base44-btn ${
+            className={`flex-1 sm:flex-none text-center rounded px-3 py-1 text-xs font-semibold transition-colors base44-btn ${
               filter === "unpaid"
                 ? "bg-card text-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground"
@@ -410,8 +412,8 @@ export function PaymentsClient({
           </h3>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border bg-card shadow-2xs">
-          <Table>
+        <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-2xs">
+          <Table className="min-w-[620px]">
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
                 <TableHead className="text-xs font-medium text-muted-foreground">

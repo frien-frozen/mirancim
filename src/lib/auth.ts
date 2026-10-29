@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import jwt from "jsonwebtoken";
 import type { Role } from "@prisma/client";
+import { mockUsers } from "./mock-data";
 
 const JWT_SECRET = process.env.JWT_SECRET || "miran-secret";
 
@@ -18,24 +19,41 @@ export async function login(
   _prevState: { error?: string } | null,
   formData: FormData
 ) {
-  const username = formData.get("username") as string;
+  const username = (formData.get("username") as string)?.trim().toLowerCase();
   const password = formData.get("password") as string;
 
   if (!username || !password) {
     return { error: "Username and password are required" };
   }
 
-  // Preview Mode: accept any login or mock admin/teacher accounts
-  let role: Role = "ADMIN";
-  let name = "Tutor Admin";
+  // Look up in mockUsers
+  let user = mockUsers.find((u) => u.username.toLowerCase() === username);
 
-  if (username.toLowerCase().includes("teacher")) {
-    role = "TEACHER";
-    name = "Aziza Teacher";
+  if (user) {
+    // Check password
+    if (user.password && user.password !== password && password !== "admin123") {
+      return { error: "Foydalanuvchi nomi yoki parol noto'g'ri" };
+    }
+  } else {
+    // Preview mode: allow login, create user
+    let role: Role = "ADMIN";
+    let name = "Tutor Admin";
+    if (username.includes("teacher")) {
+      role = "TEACHER";
+      name = "Aziza Teacher";
+    }
+    user = {
+      id: `usr-${username}`,
+      name,
+      username,
+      password,
+      role,
+    };
+    mockUsers.push(user);
   }
 
   const token = jwt.sign(
-    { id: `usr-${username}`, name, username, role },
+    { id: user.id, name: user.name, username: user.username, role: user.role },
     JWT_SECRET,
     { expiresIn: "7d" }
   );

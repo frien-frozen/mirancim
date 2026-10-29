@@ -93,9 +93,21 @@
   --sidebar-ring: #ff5c16;
 }
 
+html,
 body {
   background-color: var(--background);
   color: var(--foreground);
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Prevent mobile Safari & iOS browsers from auto-magnifying/zooming on input tap */
+@media screen and (max-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }
 
 /* Base44 Typography Utilities */

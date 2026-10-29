@@ -130,7 +130,7 @@ function GroupForm({
             {schedules.map((slot, index) => (
               <div
                 key={index}
-                className="flex items-center gap-2 rounded-lg border border-border bg-card p-2 text-xs"
+                className="flex flex-wrap sm:flex-nowrap items-center gap-2 rounded-lg border border-border bg-card p-2 text-xs"
               >
                 {/* Day selector */}
                 <div className="flex-1 min-w-[120px]">
@@ -156,20 +156,20 @@ function GroupForm({
                   </Select>
                 </div>
 
-                {/* Start time */}
+                {/* Start & End time */}
                 <div className="flex items-center gap-1">
                   <Input
                     type="time"
                     value={slot.startTime}
                     onChange={(e) => updateSlot(index, "startTime", e.target.value)}
-                    className="h-7.5 w-21 text-xs bg-background px-1.5 py-0.5 text-center font-sans"
+                    className="h-7.5 w-20 text-xs bg-background px-1 py-0.5 text-center font-sans"
                   />
                   <span className="text-muted-foreground text-xs">-</span>
                   <Input
                     type="time"
                     value={slot.endTime}
                     onChange={(e) => updateSlot(index, "endTime", e.target.value)}
-                    className="h-7.5 w-21 text-xs bg-background px-1.5 py-0.5 text-center font-sans"
+                    className="h-7.5 w-20 text-xs bg-background px-1 py-0.5 text-center font-sans"
                   />
                 </div>
 
@@ -177,7 +177,7 @@ function GroupForm({
                 <button
                   type="button"
                   onClick={() => removeSlot(index)}
-                  className="rounded-md p-1.5 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                  className="rounded-md p-1.5 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors ml-auto sm:ml-0"
                   title="O'chirish"
                 >
                   <X className="h-3.5 w-3.5 stroke-[2]" />
@@ -273,7 +273,7 @@ export function GroupsClient({ groups, isAdmin }: GroupsClientProps) {
                 </Button>
               }
             />
-            <DialogContent className="border-border bg-card text-foreground rounded-lg max-w-md">
+            <DialogContent className="border-border bg-card text-foreground rounded-xl max-w-md w-full p-5 sm:p-6 shadow-2xl">
               <DialogHeader>
                 <DialogTitle className="font-semibold text-lg">{t.groups.createTitle}</DialogTitle>
               </DialogHeader>
@@ -307,8 +307,8 @@ export function GroupsClient({ groups, isAdmin }: GroupsClientProps) {
           )}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border bg-card shadow-2xs">
-          <Table>
+        <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-2xs">
+          <Table className="min-w-[560px]">
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
                 <TableHead className="text-xs font-medium text-muted-foreground">{t.groups.nameCol}</TableHead>
@@ -393,7 +393,7 @@ export function GroupsClient({ groups, isAdmin }: GroupsClientProps) {
 
       {/* Edit Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="border-border bg-card text-foreground rounded-lg max-w-md">
+        <DialogContent className="border-border bg-card text-foreground rounded-xl max-w-md w-full p-5 sm:p-6 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="font-semibold text-lg">{t.groups.editTitle}</DialogTitle>
           </DialogHeader>
@@ -411,7 +411,7 @@ export function GroupsClient({ groups, isAdmin }: GroupsClientProps) {
 
       {/* Delete Dialog */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="border-border bg-card text-foreground rounded-lg">
+        <DialogContent className="border-border bg-card text-foreground rounded-xl max-w-md w-full p-5 sm:p-6 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="font-semibold text-lg">{t.groups.deleteConfirmTitle}</DialogTitle>
           </DialogHeader>

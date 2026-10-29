@@ -84,17 +84,17 @@ export function DashboardClient({
               </span>
               <card.icon className="h-4 w-4 text-muted-foreground stroke-[1.75]" />
             </div>
-            <p className="mt-3 text-[32px] sm:text-[36px] font-bold text-foreground font-sans tracking-tight leading-none">
+            <p className="mt-3 text-[26px] xs:text-[28px] sm:text-[34px] font-bold text-foreground font-sans tracking-tight leading-tight truncate">
               {card.value}
             </p>
-            <p className="mt-1 text-[13px] text-muted-foreground">{card.sub}</p>
+            <p className="mt-1 text-[13px] text-muted-foreground truncate">{card.sub}</p>
           </div>
         ))}
       </div>
 
       {/* Progress Canvas Card */}
-      <div className="rounded-lg border border-border bg-card p-6 shadow-2xs">
-        <div className="flex items-center justify-between">
+      <div className="rounded-lg border border-border bg-card p-5 sm:p-6 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-md bg-[#ff5c16]/10 text-[#ff5c16]">
               <Wallet className="h-4.5 w-4.5 stroke-[1.75]" />

@@ -4,8 +4,26 @@ export interface MockUser {
   id: string;
   name: string;
   username: string;
+  password?: string;
   role: Role;
 }
+
+export const mockUsers: MockUser[] = [
+  {
+    id: "usr-admin",
+    name: "Tutor Admin",
+    username: "admin",
+    password: "admin123",
+    role: "ADMIN",
+  },
+  {
+    id: "usr-teacher",
+    name: "Aziza Teacher",
+    username: "teacher",
+    password: "teacher123",
+    role: "TEACHER",
+  },
+];
 
 export interface GroupSchedule {
   id: string;

@@ -91,7 +91,7 @@ function StudentForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs font-medium text-foreground/80">{t.students.phoneLabel}</Label>
           <Input
@@ -113,7 +113,7 @@ function StudentForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs font-medium text-foreground/80">{t.students.parentPhoneLabel}</Label>
           <Input
@@ -256,7 +256,7 @@ export function StudentsClient({ students, groups }: StudentsClientProps) {
               </Button>
             }
           />
-          <DialogContent className="border-border bg-card text-foreground rounded-lg">
+          <DialogContent className="border-border bg-card text-foreground rounded-xl max-w-md w-full p-5 sm:p-6 shadow-2xl">
             <DialogHeader>
               <DialogTitle className="font-semibold text-lg">{t.students.createTitle}</DialogTitle>
             </DialogHeader>
@@ -272,7 +272,7 @@ export function StudentsClient({ students, groups }: StudentsClientProps) {
 
       {/* Filter Toolbar */}
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
-        <div className="relative max-w-xs flex-1">
+        <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground stroke-[1.75]" />
           <Input
             placeholder={t.students.searchPlaceholder}
@@ -285,7 +285,7 @@ export function StudentsClient({ students, groups }: StudentsClientProps) {
           value={filterGroup}
           onValueChange={(val) => setFilterGroup(val ?? "all")}
         >
-          <SelectTrigger className="h-8.5 w-48 rounded-md border-border bg-card text-xs text-foreground">
+          <SelectTrigger className="h-8.5 w-full sm:w-48 rounded-md border-border bg-card text-xs text-foreground">
             <SelectValue placeholder={t.students.allGroups}>
               {filterGroup === "all" ? t.students.allGroups : groups.find((g) => g.id === filterGroup)?.name}
             </SelectValue>
@@ -319,8 +319,8 @@ export function StudentsClient({ students, groups }: StudentsClientProps) {
           <h3 className="text-base font-normal text-foreground base44-subheading">{t.students.noStudents}</h3>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border bg-card shadow-2xs">
-          <Table>
+        <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-2xs">
+          <Table className="min-w-[620px]">
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
                 <TableHead className="text-xs font-medium text-muted-foreground">{t.students.nameLabel}</TableHead>
@@ -406,7 +406,7 @@ export function StudentsClient({ students, groups }: StudentsClientProps) {
 
       {/* Edit Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="border-border bg-card text-foreground rounded-lg">
+        <DialogContent className="border-border bg-card text-foreground rounded-xl max-w-md w-full p-5 sm:p-6 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="font-semibold text-lg">{t.students.editTitle}</DialogTitle>
           </DialogHeader>
@@ -422,7 +422,7 @@ export function StudentsClient({ students, groups }: StudentsClientProps) {
 
       {/* Delete Dialog */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="border-border bg-card text-foreground rounded-lg">
+        <DialogContent className="border-border bg-card text-foreground rounded-xl max-w-md w-full p-5 sm:p-6 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="font-semibold text-lg">{t.students.deleteConfirmTitle}</DialogTitle>
           </DialogHeader>
