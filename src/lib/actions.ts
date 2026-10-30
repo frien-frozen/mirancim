@@ -1,17 +1,11 @@
 "use server";
 
 import { requireAuth, requireAdmin } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
-import {
-  mockGroups,
-  mockStudents,
-  mockAttendances,
-  mockPayments,
-  mockUsers,
-  MockStudent,
-} from "./mock-data";
+import bcrypt from "bcryptjs";
 
 // ========================
 // GROUP ACTIONS
@@ -19,69 +13,113 @@ import {
 
 export async function getGroups() {
   await requireAuth();
-  return mockGroups.map((g) => ({
-    ...g,
-    _count: {
-      students: mockStudents.filter((s) => s.groupId === g.id && s.isActive).length,
+  const groups = await prisma.group.findMany({
+    include: {
+      schedules: {
+        orderBy: { dayOfWeek: "asc" },
+      },
+      _count: {
+        select: {
+          students: {
+            where: { isActive: true },
+          },
+        },
+      },
     },
-  }));
+    orderBy: { createdAt: "desc" },
+  });
+
+  return groups;
 }
 
 export async function createGroup(formData: FormData) {
   await requireAdmin();
-  const name = formData.get("name") as string;
-  if (!name?.trim()) return { error: "Group name is required" };
+  const name = (formData.get("name") as string)?.trim();
+  if (!name) return { error: "Guruh nomi kiritilishi shart" };
 
   const rawSchedules = (formData.get("schedules") as string) || "[]";
-  let schedules = [];
+  let schedules: { dayOfWeek: number; startTime: string; endTime: string }[] = [];
   try {
     schedules = JSON.parse(rawSchedules);
   } catch {
     schedules = [];
   }
 
-  const newGroup = {
-    id: `grp-${Date.now()}`,
-    name: name.trim(),
-    schedules,
-    createdAt: new Date(),
-    _count: { students: 0 },
-  };
-  mockGroups.unshift(newGroup);
+  await prisma.group.create({
+    data: {
+      name,
+      schedules: {
+        create: schedules.map((s) => ({
+          dayOfWeek: Number(s.dayOfWeek),
+          startTime: s.startTime || "14:00",
+          endTime: s.endTime || "16:00",
+        })),
+      },
+    },
+  });
 
   revalidatePath("/groups");
+  revalidatePath("/attendance");
+  revalidatePath("/students");
+  revalidatePath("/payments");
+  revalidatePath("/dashboard");
   return { success: true };
 }
 
 export async function updateGroup(id: string, formData: FormData) {
   await requireAdmin();
-  const name = formData.get("name") as string;
-  if (!name?.trim()) return { error: "Group name is required" };
+  const name = (formData.get("name") as string)?.trim();
+  if (!name) return { error: "Guruh nomi kiritilishi shart" };
 
   const rawSchedules = (formData.get("schedules") as string) || "[]";
-  let schedules = [];
+  let schedules: { dayOfWeek: number; startTime: string; endTime: string }[] = [];
   try {
     schedules = JSON.parse(rawSchedules);
   } catch {
     schedules = [];
   }
 
-  const group = mockGroups.find((g) => g.id === id);
-  if (group) {
-    group.name = name.trim();
-    group.schedules = schedules;
-  }
+  await prisma.$transaction([
+    prisma.group.update({
+      where: { id },
+      data: { name },
+    }),
+    prisma.groupSchedule.deleteMany({
+      where: { groupId: id },
+    }),
+    ...(schedules.length > 0
+      ? [
+          prisma.groupSchedule.createMany({
+            data: schedules.map((s) => ({
+              groupId: id,
+              dayOfWeek: Number(s.dayOfWeek),
+              startTime: s.startTime || "14:00",
+              endTime: s.endTime || "16:00",
+            })),
+          }),
+        ]
+      : []),
+  ]);
 
   revalidatePath("/groups");
+  revalidatePath("/attendance");
+  revalidatePath("/students");
+  revalidatePath("/payments");
+  revalidatePath("/dashboard");
   return { success: true };
 }
 
 export async function deleteGroup(id: string) {
   await requireAdmin();
-  const index = mockGroups.findIndex((g) => g.id === id);
-  if (index !== -1) mockGroups.splice(index, 1);
+  await prisma.group.delete({
+    where: { id },
+  });
 
   revalidatePath("/groups");
+  revalidatePath("/attendance");
+  revalidatePath("/students");
+  revalidatePath("/payments");
+  revalidatePath("/dashboard");
   return { success: true };
 }
 
@@ -91,100 +129,119 @@ export async function deleteGroup(id: string) {
 
 export async function getStudents(groupId?: string) {
   await requireAuth();
-  let list = mockStudents.filter((s) => s.isActive);
-  if (groupId && groupId !== "all") {
-    list = list.filter((s) => s.groupId === groupId);
-  }
-  return list;
+  const students = await prisma.student.findMany({
+    where: {
+      isActive: true,
+      ...(groupId && groupId !== "all" ? { groupId } : {}),
+    },
+    include: {
+      group: {
+        select: { id: true, name: true },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return students;
 }
 
 export async function getStudent(id: string) {
   await requireAuth();
-  return mockStudents.find((s) => s.id === id) || null;
+  return prisma.student.findUnique({
+    where: { id },
+    include: {
+      group: {
+        select: { id: true, name: true },
+      },
+    },
+  });
 }
 
 export async function createStudent(formData: FormData) {
   await requireAdmin();
-  const name = formData.get("name") as string;
-  const phone = formData.get("phone") as string;
-  const parentPhone = (formData.get("parentPhone") as string) || null;
-  const rawTelegram = (formData.get("telegram") as string) || null;
-  const telegram = rawTelegram?.trim()
-    ? rawTelegram.trim().startsWith("@")
-      ? rawTelegram.trim()
-      : `@${rawTelegram.trim()}`
+  const name = (formData.get("name") as string)?.trim();
+  const phone = ((formData.get("phone") as string) || "").trim();
+  const parentPhone = (formData.get("parentPhone") as string)?.trim() || null;
+  const rawTelegram = (formData.get("telegram") as string)?.trim() || null;
+  const telegram = rawTelegram
+    ? rawTelegram.startsWith("@")
+      ? rawTelegram
+      : `@${rawTelegram}`
     : null;
-  const tuitionFee = parseInt(formData.get("tuitionFee") as string);
+  const tuitionFee = parseInt(formData.get("tuitionFee") as string) || 450000;
   const groupId = formData.get("groupId") as string;
 
-  if (!name?.trim() || !phone?.trim() || !groupId || isNaN(tuitionFee)) {
-    return { error: "All required fields must be filled" };
+  if (!name || !groupId) {
+    return { error: "Ism va guruh tanlanishi shart" };
   }
 
-  const group = mockGroups.find((g) => g.id === groupId);
-  const newStudent: MockStudent = {
-    id: `std-${Date.now()}`,
-    name: name.trim(),
-    phone: phone.trim(),
-    parentPhone: parentPhone?.trim() || null,
-    telegram,
-    tuitionFee,
-    isActive: true,
-    groupId,
-    createdAt: new Date(),
-    group: { id: groupId, name: group?.name || "Unknown Group" },
-  };
-
-  mockStudents.unshift(newStudent);
+  await prisma.student.create({
+    data: {
+      name,
+      phone: phone || "+998 -- --- -- --",
+      parentPhone,
+      telegram,
+      tuitionFee,
+      groupId,
+      isActive: true,
+    },
+  });
 
   revalidatePath("/students");
   revalidatePath("/dashboard");
+  revalidatePath("/attendance");
+  revalidatePath("/payments");
   return { success: true };
 }
 
 export async function updateStudent(id: string, formData: FormData) {
   await requireAdmin();
-  const name = formData.get("name") as string;
-  const phone = formData.get("phone") as string;
-  const parentPhone = (formData.get("parentPhone") as string) || null;
-  const rawTelegram = (formData.get("telegram") as string) || null;
-  const telegram = rawTelegram?.trim()
-    ? rawTelegram.trim().startsWith("@")
-      ? rawTelegram.trim()
-      : `@${rawTelegram.trim()}`
+  const name = (formData.get("name") as string)?.trim();
+  const phone = ((formData.get("phone") as string) || "").trim();
+  const parentPhone = (formData.get("parentPhone") as string)?.trim() || null;
+  const rawTelegram = (formData.get("telegram") as string)?.trim() || null;
+  const telegram = rawTelegram
+    ? rawTelegram.startsWith("@")
+      ? rawTelegram
+      : `@${rawTelegram}`
     : null;
-  const tuitionFee = parseInt(formData.get("tuitionFee") as string);
+  const tuitionFee = parseInt(formData.get("tuitionFee") as string) || 450000;
   const groupId = formData.get("groupId") as string;
 
-  if (!name?.trim() || !phone?.trim() || !groupId || isNaN(tuitionFee)) {
-    return { error: "All required fields must be filled" };
+  if (!name || !groupId) {
+    return { error: "Ism va guruh tanlanishi shart" };
   }
 
-  const student = mockStudents.find((s) => s.id === id);
-  const group = mockGroups.find((g) => g.id === groupId);
-
-  if (student) {
-    student.name = name.trim();
-    student.phone = phone.trim();
-    student.parentPhone = parentPhone?.trim() || null;
-    student.telegram = telegram;
-    student.tuitionFee = tuitionFee;
-    student.groupId = groupId;
-    if (group) student.group = { id: group.id, name: group.name };
-  }
+  await prisma.student.update({
+    where: { id },
+    data: {
+      name,
+      phone: phone || "+998 -- --- -- --",
+      parentPhone,
+      telegram,
+      tuitionFee,
+      groupId,
+    },
+  });
 
   revalidatePath("/students");
   revalidatePath("/dashboard");
+  revalidatePath("/attendance");
+  revalidatePath("/payments");
   return { success: true };
 }
 
 export async function deleteStudent(id: string) {
   await requireAdmin();
-  const index = mockStudents.findIndex((s) => s.id === id);
-  if (index !== -1) mockStudents.splice(index, 1);
+  await prisma.student.update({
+    where: { id },
+    data: { isActive: false },
+  });
 
   revalidatePath("/students");
   revalidatePath("/dashboard");
+  revalidatePath("/attendance");
+  revalidatePath("/payments");
   return { success: true };
 }
 
@@ -192,43 +249,62 @@ export async function deleteStudent(id: string) {
 // ATTENDANCE ACTIONS
 // ========================
 
-export async function getAttendance(groupId: string, date: string) {
+export async function getAttendance(groupId: string, dateStr: string) {
   await requireAuth();
-  const studentsInGroup = mockStudents.filter(
-    (s) => s.groupId === groupId && s.isActive
-  );
+  const targetDate = new Date(`${dateStr}T00:00:00.000Z`);
 
-  return studentsInGroup.map((student) => {
-    const record = mockAttendances.find(
-      (a) => a.studentId === student.id && a.date === date
-    );
-    return {
-      ...student,
-      attendance: record ? { id: record.id, isPresent: record.isPresent } : null,
-    };
+  const students = await prisma.student.findMany({
+    where: {
+      groupId,
+      isActive: true,
+    },
+    include: {
+      attendances: {
+        where: {
+          date: targetDate,
+        },
+      },
+    },
+    orderBy: { name: "asc" },
   });
+
+  return students.map((student) => ({
+    id: student.id,
+    name: student.name,
+    phone: student.phone,
+    telegram: student.telegram,
+    attendance:
+      student.attendances.length > 0
+        ? {
+            id: student.attendances[0].id,
+            isPresent: student.attendances[0].isPresent,
+          }
+        : null,
+  }));
 }
 
 export async function markAttendance(
   studentId: string,
-  date: string,
+  dateStr: string,
   isPresent: boolean
 ) {
   await requireAuth();
-  const existing = mockAttendances.find(
-    (a) => a.studentId === studentId && a.date === date
-  );
+  const targetDate = new Date(`${dateStr}T00:00:00.000Z`);
 
-  if (existing) {
-    existing.isPresent = isPresent;
-  } else {
-    mockAttendances.push({
-      id: `att-${Date.now()}`,
+  await prisma.attendance.upsert({
+    where: {
+      studentId_date: {
+        studentId,
+        date: targetDate,
+      },
+    },
+    update: { isPresent },
+    create: {
       studentId,
-      date,
+      date: targetDate,
       isPresent,
-    });
-  }
+    },
+  });
 
   revalidatePath("/attendance");
   return { success: true };
@@ -236,25 +312,30 @@ export async function markAttendance(
 
 export async function markAllAttendance(
   studentIds: string[],
-  date: string,
+  dateStr: string,
   isPresent: boolean
 ) {
   await requireAuth();
-  for (const studentId of studentIds) {
-    const existing = mockAttendances.find(
-      (a) => a.studentId === studentId && a.date === date
-    );
-    if (existing) {
-      existing.isPresent = isPresent;
-    } else {
-      mockAttendances.push({
-        id: `att-${Date.now()}-${studentId}`,
-        studentId,
-        date,
-        isPresent,
-      });
-    }
-  }
+  const targetDate = new Date(`${dateStr}T00:00:00.000Z`);
+
+  await prisma.$transaction(
+    studentIds.map((studentId) =>
+      prisma.attendance.upsert({
+        where: {
+          studentId_date: {
+            studentId,
+            date: targetDate,
+          },
+        },
+        update: { isPresent },
+        create: {
+          studentId,
+          date: targetDate,
+          isPresent,
+        },
+      })
+    )
+  );
 
   revalidatePath("/attendance");
   return { success: true };
@@ -270,70 +351,96 @@ export async function getPayments(month?: string) {
     ? month.substring(0, 7)
     : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
 
-  const activeStudents = mockStudents.filter((s) => s.isActive);
+  const monthDate = new Date(`${targetMonth}-01T00:00:00.000Z`);
 
-  return activeStudents.map((student) => {
-    const payment = mockPayments.find(
-      (p) => p.studentId === student.id && p.month === targetMonth
-    );
+  const students = await prisma.student.findMany({
+    where: { isActive: true },
+    include: {
+      group: {
+        select: { id: true, name: true },
+      },
+      payments: {
+        where: {
+          month: monthDate,
+        },
+      },
+    },
+    orderBy: { name: "asc" },
+  });
+
+  return students.map((student) => {
+    const payment = student.payments[0];
     return {
-      ...student,
+      id: student.id,
+      name: student.name,
+      phone: student.phone,
+      tuitionFee: student.tuitionFee,
+      group: student.group,
       payment: payment
         ? {
             id: payment.id,
             isPaid: payment.isPaid,
             amount: payment.amount,
-            paidAt: payment.paidAt?.toISOString() || null,
+            paidAt: payment.paidAt ? payment.paidAt.toISOString() : null,
           }
         : null,
     };
   });
 }
 
-export async function confirmPayment(studentId: string, month?: string) {
+export async function confirmPayment(studentId: string, monthStr?: string) {
   await requireAdmin();
-  const targetMonth = month
-    ? month.substring(0, 7)
+  const targetMonth = monthStr
+    ? monthStr.substring(0, 7)
     : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
 
-  const student = mockStudents.find((s) => s.id === studentId);
-  if (!student) return { error: "Student not found" };
+  const monthDate = new Date(`${targetMonth}-01T00:00:00.000Z`);
 
-  const existing = mockPayments.find(
-    (p) => p.studentId === studentId && p.month === targetMonth
-  );
+  const student = await prisma.student.findUnique({
+    where: { id: studentId },
+  });
+  if (!student) return { error: "O'quvchi topilmadi" };
 
-  if (existing) {
-    existing.isPaid = true;
-    existing.paidAt = new Date();
-  } else {
-    mockPayments.push({
-      id: `pay-${Date.now()}`,
+  await prisma.payment.upsert({
+    where: {
+      studentId_month: {
+        studentId,
+        month: monthDate,
+      },
+    },
+    update: {
+      isPaid: true,
+      amount: student.tuitionFee,
+      paidAt: new Date(),
+    },
+    create: {
       studentId,
-      month: targetMonth,
+      month: monthDate,
       amount: student.tuitionFee,
       isPaid: true,
       paidAt: new Date(),
-    });
-  }
+    },
+  });
 
   revalidatePath("/payments");
   revalidatePath("/dashboard");
   return { success: true };
 }
 
-export async function unconfirmPayment(studentId: string, month?: string) {
+export async function unconfirmPayment(studentId: string, monthStr?: string) {
   await requireAdmin();
-  const targetMonth = month
-    ? month.substring(0, 7)
+  const targetMonth = monthStr
+    ? monthStr.substring(0, 7)
     : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
 
-  const index = mockPayments.findIndex(
-    (p) => p.studentId === studentId && p.month === targetMonth
-  );
-  if (index !== -1) {
-    mockPayments.splice(index, 1);
-  }
+  const monthDate = new Date(`${targetMonth}-01T00:00:00.000Z`);
+
+  await prisma.payment.deleteMany({
+    where: {
+      studentId,
+      month: monthDate,
+    },
+  });
 
   revalidatePath("/payments");
   revalidatePath("/dashboard");
@@ -347,19 +454,28 @@ export async function unconfirmPayment(studentId: string, month?: string) {
 export async function getDashboardStats() {
   await requireAuth();
 
-  const currentMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
-  const activeStudents = mockStudents.filter((s) => s.isActive);
+  const now = new Date();
+  const targetMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const monthDate = new Date(`${targetMonth}-01T00:00:00.000Z`);
+
+  const [activeStudents, totalGroups, currentMonthPayments] = await Promise.all([
+    prisma.student.findMany({
+      where: { isActive: true },
+      select: { tuitionFee: true },
+    }),
+    prisma.group.count(),
+    prisma.payment.findMany({
+      where: {
+        month: monthDate,
+        isPaid: true,
+      },
+      select: { amount: true },
+    }),
+  ]);
 
   const totalStudents = activeStudents.length;
-  const totalGroups = mockGroups.length;
-
   const expectedRevenue = activeStudents.reduce((sum, s) => sum + s.tuitionFee, 0);
-
-  const currentMonthPayments = mockPayments.filter(
-    (p) => p.month === currentMonth && p.isPaid
-  );
   const collectedRevenue = currentMonthPayments.reduce((sum, p) => sum + p.amount, 0);
-
   const paidCount = currentMonthPayments.length;
   const unpaidCount = Math.max(0, totalStudents - paidCount);
 
@@ -374,7 +490,7 @@ export async function getDashboardStats() {
 }
 
 // ========================
-// PROFILE ACTIONS
+// PROFILE / SETTINGS ACTIONS
 // ========================
 
 export async function updateProfile(formData: FormData) {
@@ -389,28 +505,54 @@ export async function updateProfile(formData: FormData) {
     return { error: "Ism va foydalanuvchi nomi to'ldirilishi shart" };
   }
 
-  // Find user in mockUsers
-  let user = mockUsers.find(
-    (u) => u.id === session.id || u.username.toLowerCase() === session.username.toLowerCase()
-  );
+  // Find user in Prisma database
+  let user = await prisma.user.findUnique({
+    where: { id: session.id },
+  });
 
   if (!user) {
-    user = {
-      id: session.id,
-      name: session.name,
-      username: session.username,
-      password: "admin123",
-      role: session.role,
-    };
-    mockUsers.push(user);
+    user = await prisma.user.findFirst({
+      where: {
+        username: {
+          equals: session.username,
+          mode: "insensitive",
+        },
+      },
+    });
   }
+
+  if (!user) {
+    return { error: "Foydalanuvchi topilmadi" };
+  }
+
+  // Check if username changed and is already taken
+  if (username !== user.username.toLowerCase()) {
+    const existing = await prisma.user.findFirst({
+      where: {
+        username: {
+          equals: username,
+          mode: "insensitive",
+        },
+        NOT: { id: user.id },
+      },
+    });
+    if (existing) {
+      return { error: "Ushbu foydalanuvchi nomi allaqachon band" };
+    }
+  }
+
+  let updatedPassword = user.password;
 
   // Check if changing password
   if (currentPassword || newPassword || confirmPassword) {
     if (!currentPassword) {
       return { error: "Hozirgi parolni kiriting" };
     }
-    const isCurrentValid = (user.password || "admin123") === currentPassword || currentPassword === "admin123";
+
+    const isCurrentValid =
+      (await bcrypt.compare(currentPassword, user.password).catch(() => false)) ||
+      user.password === currentPassword;
+
     if (!isCurrentValid) {
       return { error: "Hozirgi parol noto'g'ri" };
     }
@@ -420,16 +562,28 @@ export async function updateProfile(formData: FormData) {
     if (newPassword !== confirmPassword) {
       return { error: "Yangi parollar bir-biriga mos kelmadi" };
     }
-    user.password = newPassword;
+
+    updatedPassword = await bcrypt.hash(newPassword, 10);
   }
 
-  user.name = name;
-  user.username = username;
+  const updatedUser = await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      name,
+      username,
+      password: updatedPassword,
+    },
+  });
 
-  // Re-sign JWT session cookie with new name and username
-  const JWT_SECRET = process.env.JWT_SECRET || "miran-secret";
+  // Re-sign JWT session cookie with updated credentials
+  const JWT_SECRET = process.env.JWT_SECRET || "miran-lms-secret-key-change-in-production";
   const token = jwt.sign(
-    { id: user.id, name: user.name, username: user.username, role: user.role },
+    {
+      id: updatedUser.id,
+      name: updatedUser.name,
+      username: updatedUser.username,
+      role: updatedUser.role,
+    },
     JWT_SECRET,
     { expiresIn: "7d" }
   );
@@ -444,5 +598,5 @@ export async function updateProfile(formData: FormData) {
   });
 
   revalidatePath("/", "layout");
-  return { success: true, name: user.name, username: user.username };
+  return { success: true, name: updatedUser.name, username: updatedUser.username };
 }
