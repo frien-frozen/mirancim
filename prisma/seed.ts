@@ -110,12 +110,12 @@ async function main() {
     }
   }
 
-  // 3. Group 2: "TOQ 18-20" (Monday, Wednesday, Friday: 18:00 - 20:00)
+  // 3. Group 2: "TOQ 6-8" (Monday, Wednesday, Friday: 18:00 - 20:00)
   let toqGroup = await prisma.group.findFirst({
     where: {
       OR: [
-        { name: "TOQ 18-20" },
         { name: "TOQ 6-8" },
+        { name: "TOQ 18-20" },
       ],
     },
   });
@@ -123,7 +123,7 @@ async function main() {
   if (toqGroup) {
     await prisma.group.update({
       where: { id: toqGroup.id },
-      data: { name: "TOQ 18-20" },
+      data: { name: "TOQ 6-8" },
     });
     await prisma.groupSchedule.deleteMany({ where: { groupId: toqGroup.id } });
     await prisma.groupSchedule.createMany({
@@ -136,7 +136,7 @@ async function main() {
   } else {
     toqGroup = await prisma.group.create({
       data: {
-        name: "TOQ 18-20",
+        name: "TOQ 6-8",
         schedules: {
           create: [
             { dayOfWeek: 1, startTime: "18:00", endTime: "20:00" },
