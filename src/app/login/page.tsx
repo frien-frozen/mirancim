@@ -80,9 +80,19 @@ export default function LoginPage() {
 
           {/* Form */}
           <form action={formAction} className="space-y-4">
+            <input type="hidden" name="locale" value={locale} />
             {state?.error && (
               <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs text-red-500 font-medium animate-in fade-in-50">
-                {state.error}
+                {state.code === "DB_ERROR"
+                  ? t.login.dbError
+                  : state.code === "RATE_LIMIT"
+                  ? t.login.rateLimitError.replace(
+                      "{minutes}",
+                      String(state.retryAfterMinutes || 10)
+                    )
+                  : state.code === "REQUIRED_FIELDS"
+                  ? t.login.requiredFields
+                  : state.error}
               </div>
             )}
 
@@ -103,7 +113,7 @@ export default function LoginPage() {
                 spellCheck={false}
                 autoComplete="username"
                 className="w-full h-11 rounded-xl border border-border bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all focus:border-foreground/40 focus:ring-1 focus:ring-foreground/20 shadow-2xs"
-                placeholder={isTr ? "admin veya ornek@mirancim.com" : "admin yoki ism@mirancim.uz"}
+                placeholder={isTr ? "ornek@mirancim.com" : "ism@mirancim.uz"}
               />
             </div>
 

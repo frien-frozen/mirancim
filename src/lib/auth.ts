@@ -24,10 +24,19 @@ export interface SessionUser {
   role: Role;
 }
 
+export type LoginResult = {
+  error?: string;
+  code?: "INVALID_CREDS" | "DB_ERROR" | "RATE_LIMIT" | "REQUIRED_FIELDS";
+  retryAfterMinutes?: number;
+} | null;
+
 export async function login(
-  _prevState: { error?: string } | null,
+  _prevState: LoginResult | undefined,
   formData: FormData
-) {
+): Promise<LoginResult> {
+  const locale = (formData.get("locale") as string) === "tr" ? "tr" : "uz";
+  const isTr = locale === "tr";
+
   // 1. Resolve client IP for rate limiting
   const headersList = await headers();
   const forwardedFor = headersList.get("x-forwarded-for");
@@ -38,30 +47,35 @@ export async function login(
   const rateLimit = checkRateLimit(rateLimitKey);
   if (!rateLimit.allowed) {
     return {
-      error: `Xavfsizlik tizimi: Ko'p marta xato urinishlar qilindi. Iltimos, ${rateLimit.retryAfterMinutes} daqiqadan so'ng qayta urinib ko'ring.`,
+      code: "RATE_LIMIT",
+      retryAfterMinutes: rateLimit.retryAfterMinutes,
+      error: isTr
+        ? `Çok fazla başarısız deneme yapıldı. Lütfen ${rateLimit.retryAfterMinutes} dakika sonra tekrar deneyin.`
+        : `Ko'p marta xato urinishlar qilindi. Iltimos, ${rateLimit.retryAfterMinutes} daqiqadan so'ng qayta urinib ko'ring.`,
     };
   }
 
-  // 3. Extract, sanitize, and validate inputs
+  // 3. Extract and sanitize inputs
   const rawUsername = formData.get("username");
   const rawPassword = formData.get("password");
 
   const validUsername = sanitizeAndValidateUsername(rawUsername);
-  if (!validUsername.valid) {
-    recordFailedAttempt(rateLimitKey);
-    return { error: validUsername.error || "Foydalanuvchi nomi noto'g'ri kiritildi" };
-  }
-
   const validPassword = validatePassword(rawPassword);
-  if (!validPassword.valid) {
+
+  if (!validUsername.valid || !validPassword.valid) {
     recordFailedAttempt(rateLimitKey);
-    return { error: validPassword.error || "Parol noto'g'ri kiritildi" };
+    return {
+      code: "INVALID_CREDS",
+      error: isTr
+        ? "Geçersiz kullanıcı adı veya şifre"
+        : "Foydalanuvchi nomi yoki parol noto'g'ri",
+    };
   }
 
   const username = validUsername.username;
   const password = validPassword.password;
 
-  // 4. Look up user in database with error boundary
+  // 4. Query user in database
   let user: {
     id: string;
     name: string;
@@ -82,19 +96,26 @@ export async function login(
   } catch (dbErr) {
     console.error("Database connection error during login:", dbErr);
     return {
-      error:
-        "Ma'lumotlar bazasiga ulanib bo'lmadi. Vercel boshqaruv panelida DATABASE_URL to'g'ri kiritilganligini tekshiring.",
+      code: "DB_ERROR",
+      error: isTr
+        ? "Veritabanına bağlanılamadı. Lütfen daha sonra tekrar deneyin."
+        : "Ma'lumotlar bazasiga ulanib bo'lmadi. Keyinroq qayta urinib ko'ring.",
     };
   }
 
-  // 5. If user not found, perform dummy check to prevent timing attacks / username enumeration
+  // 5. If user not found, perform dummy check to prevent timing attacks
   if (!user || !user.password) {
     await performTimingDummyCheck(password);
     recordFailedAttempt(rateLimitKey);
-    return { error: "Foydalanuvchi nomi yoki parol noto'g'ri" };
+    return {
+      code: "INVALID_CREDS",
+      error: isTr
+        ? "Geçersiz kullanıcı adı veya şifre"
+        : "Foydalanuvchi nomi yoki parol noto'g'ri",
+    };
   }
 
-  // 6. Secure password verification (bcrypt constant-time comparison)
+  // 6. Verify password with bcrypt
   let isMatch = false;
   try {
     isMatch = await bcrypt.compare(password, user.password);
@@ -104,7 +125,12 @@ export async function login(
 
   if (!isMatch) {
     recordFailedAttempt(rateLimitKey);
-    return { error: "Foydalanuvchi nomi yoki parol noto'g'ri" };
+    return {
+      code: "INVALID_CREDS",
+      error: isTr
+        ? "Geçersiz kullanıcı adı veya şifre"
+        : "Foydalanuvchi nomi yoki parol noto'g'ri",
+    };
   }
 
   // 7. Successful login - clear rate limit

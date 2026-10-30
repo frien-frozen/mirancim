@@ -8,11 +8,10 @@ interface RateLimitRecord {
   resetAt: number;
 }
 
-// In-memory rate limiting cache (sliding window)
 const rateLimitMap = new Map<string, RateLimitRecord>();
 
 const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 10 * 60 * 1000; // 10 minutes lockout
+const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
  * Validates and sanitizes username to prevent SQL injection, XSS, and buffer overflows.
@@ -20,60 +19,34 @@ const WINDOW_MS = 10 * 60 * 1000; // 10 minutes lockout
 export function sanitizeAndValidateUsername(raw: unknown): {
   valid: boolean;
   username: string;
-  error?: string;
 } {
   if (typeof raw !== "string") {
-    return { valid: false, username: "", error: "Noto'g'ri ma'lumot formati" };
+    return { valid: false, username: "" };
   }
 
   const username = raw.trim().toLowerCase();
 
-  // Null byte or control character detection
+  // Control characters or null bytes
   if (/[\x00-\x1F\x7F]/.test(username)) {
-    return { valid: false, username: "", error: "Ruxsat berilmagan belgilar aniqlandi" };
+    return { valid: false, username: "" };
   }
 
   // Length limits
-  if (username.length < 3) {
-    return { valid: false, username: "", error: "Foydalanuvchi nomi kamida 3 ta belgidan iborat bo'lishi kerak" };
-  }
-  if (username.length > 50) {
-    return { valid: false, username: "", error: "Foydalanuvchi nomi 50 ta belgidan oshmasligi kerak" };
+  if (username.length < 2 || username.length > 60) {
+    return { valid: false, username: "" };
   }
 
-  // Whitelist pattern: alphanumeric, dot, underscore, hyphen, @
-  const safeUsernamePattern = /^[a-zA-Z0-9._@-]+$/;
-  if (!safeUsernamePattern.test(username)) {
-    return {
-      valid: false,
-      username: "",
-      error: "Foydalanuvchi nomida faqat harflar, raqamlar, nuqta va @ ruxsat etiladi",
-    };
+  // Whitelist pattern: letters, numbers, dot, underscore, hyphen, @
+  const safePattern = /^[a-zA-Z0-9._@-]+$/;
+  if (!safePattern.test(username)) {
+    return { valid: false, username: "" };
   }
 
-  // Explicit SQL Injection keyword / signature check
-  const sqlInjectionSignatures = [
-    "--",
-    "/*",
-    "*/",
-    ";",
-    "'",
-    "\"",
-    "union",
-    "select",
-    "insert",
-    "drop",
-    "delete",
-    "update",
-    "exec",
-    "xp_",
-    "or 1=1",
-    "or '1'='1'",
-  ];
-
-  for (const sig of sqlInjectionSignatures) {
-    if (username.includes(sig)) {
-      return { valid: false, username: "", error: "Xavfsizlik qoidasi buzildi" };
+  // Block SQL injection fragments
+  const sqlFragments = ["--", "/*", "*/", ";", "'", "\"", "xp_"];
+  for (const fragment of sqlFragments) {
+    if (username.includes(fragment)) {
+      return { valid: false, username: "" };
     }
   }
 
@@ -86,64 +59,49 @@ export function sanitizeAndValidateUsername(raw: unknown): {
 export function validatePassword(raw: unknown): {
   valid: boolean;
   password: string;
-  error?: string;
 } {
   if (typeof raw !== "string") {
-    return { valid: false, password: "", error: "Noto'g'ri parol formati" };
+    return { valid: false, password: "" };
   }
 
   const password = raw;
 
-  if (password.length < 4) {
-    return { valid: false, password: "", error: "Parol kamida 4 ta belgidan iborat bo'lishi kerak" };
+  if (password.length < 4 || password.length > 128) {
+    return { valid: false, password: "" };
   }
 
-  // Prevent memory exhaustion / denial of service with huge payloads
-  if (password.length > 128) {
-    return { valid: false, password: "", error: "Parol uzunligi me'yordan oshib ketdi" };
-  }
-
-  // Null byte check
   if (password.includes("\0")) {
-    return { valid: false, password: "", error: "Ruxsat berilmagan belgilar aniqlandi" };
+    return { valid: false, password: "" };
   }
 
   return { valid: true, password };
 }
 
 /**
- * Checks rate limit for a specific IP or identifier.
+ * Checks sliding window rate limit for login attempts.
  */
 export function checkRateLimit(key: string): {
   allowed: boolean;
-  remainingAttempts: number;
   retryAfterMinutes?: number;
 } {
   const now = Date.now();
   const record = rateLimitMap.get(key);
 
   if (!record || now > record.resetAt) {
-    return { allowed: true, remainingAttempts: MAX_ATTEMPTS };
+    return { allowed: true };
   }
 
   if (record.count >= MAX_ATTEMPTS) {
     const retryAfterMinutes = Math.ceil((record.resetAt - now) / 60000);
     return {
       allowed: false,
-      remainingAttempts: 0,
       retryAfterMinutes: Math.max(1, retryAfterMinutes),
     };
   }
 
-  return {
-    allowed: true,
-    remainingAttempts: MAX_ATTEMPTS - record.count,
-  };
+  return { allowed: true };
 }
 
-/**
- * Records a failed attempt for a given key.
- */
 export function recordFailedAttempt(key: string): void {
   const now = Date.now();
   const record = rateLimitMap.get(key);
@@ -158,16 +116,10 @@ export function recordFailedAttempt(key: string): void {
   }
 }
 
-/**
- * Resets rate limit upon successful authentication.
- */
 export function resetRateLimit(key: string): void {
   rateLimitMap.delete(key);
 }
 
-/**
- * Performs a constant-time comparison against a dummy hash to protect against timing attacks.
- */
 export async function performTimingDummyCheck(password: string): Promise<void> {
   try {
     await bcrypt.compare(password, DUMMY_HASH);
