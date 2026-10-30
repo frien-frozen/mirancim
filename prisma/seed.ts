@@ -4,9 +4,9 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("🌱 Seeding Prisma Postgres database...");
+  console.log("🌱 Syncing Prisma database with real groups and students...");
 
-  // 1. Create or update Admin & Teacher users with hashed passwords
+  // 1. Ensure Admin & Teacher users
   const adminPassword = await bcrypt.hash("admin123", 10);
   await prisma.user.upsert({
     where: { username: "admin" },
@@ -39,65 +39,47 @@ async function main() {
     },
   });
 
-  console.log("✅ Users seeded (admin / teacher) with hashed passwords");
-
-  // 2. Create the requested group: "Juft (14:00- 16:00)"
+  // 2. Group 1: "JUFT 14-16" (Tuesday, Thursday, Saturday: 14:00 - 16:00)
   let juftGroup = await prisma.group.findFirst({
-    where: { name: { contains: "Juft" } },
+    where: {
+      OR: [
+        { name: "JUFT 14-16" },
+        { name: { contains: "Juft" } },
+        { name: { contains: "14-16" } },
+      ],
+    },
   });
 
-  if (!juftGroup) {
-    juftGroup = await prisma.group.create({
-      data: {
-        name: "Juft (14:00- 16:00)",
-        schedules: {
-          create: [
-            { dayOfWeek: 2, startTime: "14:00", endTime: "16:00" }, // Seshanba (Tue)
-            { dayOfWeek: 4, startTime: "14:00", endTime: "16:00" }, // Payshanba (Thu)
-            { dayOfWeek: 6, startTime: "14:00", endTime: "16:00" }, // Shanba (Sat)
-          ],
-        },
-      },
-    });
-  } else {
-    // Ensure name and schedules
+  if (juftGroup) {
     await prisma.group.update({
       where: { id: juftGroup.id },
-      data: { name: "Juft (14:00- 16:00)" },
+      data: { name: "JUFT 14-16" },
     });
-    const schedCount = await prisma.groupSchedule.count({
-      where: { groupId: juftGroup.id },
+    await prisma.groupSchedule.deleteMany({ where: { groupId: juftGroup.id } });
+    await prisma.groupSchedule.createMany({
+      data: [
+        { groupId: juftGroup.id, dayOfWeek: 2, startTime: "14:00", endTime: "16:00" }, // Seshanba (Tue)
+        { groupId: juftGroup.id, dayOfWeek: 4, startTime: "14:00", endTime: "16:00" }, // Payshanba (Thu)
+        { groupId: juftGroup.id, dayOfWeek: 6, startTime: "14:00", endTime: "16:00" }, // Shanba (Sat)
+      ],
     });
-    if (schedCount === 0) {
-      await prisma.groupSchedule.createMany({
-        data: [
-          { groupId: juftGroup.id, dayOfWeek: 2, startTime: "14:00", endTime: "16:00" },
-          { groupId: juftGroup.id, dayOfWeek: 4, startTime: "14:00", endTime: "16:00" },
-          { groupId: juftGroup.id, dayOfWeek: 6, startTime: "14:00", endTime: "16:00" },
-        ],
-      });
-    }
-  }
-
-  // Also create a morning group if no other groups exist
-  const totalGroups = await prisma.group.count();
-  if (totalGroups <= 1) {
-    await prisma.group.create({
+  } else {
+    juftGroup = await prisma.group.create({
       data: {
-        name: "Toq (10:00 - 11:30)",
+        name: "JUFT 14-16",
         schedules: {
           create: [
-            { dayOfWeek: 1, startTime: "10:00", endTime: "11:30" }, // Dushanba
-            { dayOfWeek: 3, startTime: "10:00", endTime: "11:30" }, // Chorshanba
-            { dayOfWeek: 5, startTime: "10:00", endTime: "11:30" }, // Juma
+            { dayOfWeek: 2, startTime: "14:00", endTime: "16:00" },
+            { dayOfWeek: 4, startTime: "14:00", endTime: "16:00" },
+            { dayOfWeek: 6, startTime: "14:00", endTime: "16:00" },
           ],
         },
       },
     });
   }
 
-  // 3. Add the 11 students to "Juft (14:00- 16:00)"
-  const studentNames = [
+  // 11 students for JUFT 14-16
+  const juftStudents = [
     "Jabborova Bahora",
     "Sarvinoz O'tabova",
     "Durdona Ashirova",
@@ -111,12 +93,10 @@ async function main() {
     "Risola",
   ];
 
-  for (let i = 0; i < studentNames.length; i++) {
-    const name = studentNames[i];
+  for (const name of juftStudents) {
     const existing = await prisma.student.findFirst({
       where: { name, groupId: juftGroup.id },
     });
-
     if (!existing) {
       await prisma.student.create({
         data: {
@@ -130,7 +110,103 @@ async function main() {
     }
   }
 
-  console.log(`✅ Seeded ${studentNames.length} students into '${juftGroup.name}'!`);
+  // 3. Group 2: "TOQ 18-20" (Monday, Wednesday, Friday: 18:00 - 20:00)
+  let toqGroup = await prisma.group.findFirst({
+    where: {
+      OR: [
+        { name: "TOQ 18-20" },
+        { name: "TOQ 6-8" },
+      ],
+    },
+  });
+
+  if (toqGroup) {
+    await prisma.group.update({
+      where: { id: toqGroup.id },
+      data: { name: "TOQ 18-20" },
+    });
+    await prisma.groupSchedule.deleteMany({ where: { groupId: toqGroup.id } });
+    await prisma.groupSchedule.createMany({
+      data: [
+        { groupId: toqGroup.id, dayOfWeek: 1, startTime: "18:00", endTime: "20:00" }, // Dushanba (Mon)
+        { groupId: toqGroup.id, dayOfWeek: 3, startTime: "18:00", endTime: "20:00" }, // Chorshanba (Wed)
+        { groupId: toqGroup.id, dayOfWeek: 5, startTime: "18:00", endTime: "20:00" }, // Juma (Fri)
+      ],
+    });
+  } else {
+    toqGroup = await prisma.group.create({
+      data: {
+        name: "TOQ 18-20",
+        schedules: {
+          create: [
+            { dayOfWeek: 1, startTime: "18:00", endTime: "20:00" },
+            { dayOfWeek: 3, startTime: "18:00", endTime: "20:00" },
+            { dayOfWeek: 5, startTime: "18:00", endTime: "20:00" },
+          ],
+        },
+      },
+    });
+  }
+
+  // 15 students for TOQ 18-20
+  const toqStudents = [
+    "Humoyunshox Abdurahmonov",
+    "To'xtaboyeva Sevinch",
+    "Shox",
+    "Behruzbek",
+    "Marg'iyona Azzamova",
+    "Bunyodbek",
+    "Aziz",
+    "Nazirqulov",
+    "Nursulton",
+    "Hayitboyev Suhrob",
+    "Feruza",
+    "Sulaymonov",
+    "İbragimova Aziza",
+    "Dilmurodovich",
+    "Husanboyev",
+  ];
+
+  for (const name of toqStudents) {
+    const existing = await prisma.student.findFirst({
+      where: { name, groupId: toqGroup.id },
+    });
+    if (!existing) {
+      await prisma.student.create({
+        data: {
+          name,
+          phone: "+998 -- --- -- --",
+          tuitionFee: 450000,
+          groupId: toqGroup.id,
+          isActive: true,
+        },
+      });
+    }
+  }
+
+  // 4. Remove empty demo/placeholder groups that have no students
+  const emptyOldGroups = await prisma.group.findMany({
+    where: {
+      name: {
+        in: [
+          "Toq (10:00 - 11:30)",
+          "Türkçe A1 - Başlangıç (Ertalab)",
+          "TÖMER B1-B2 - Intensive (Kechki)",
+          "Türkçe Konuşma Kulübü (Dam olish)",
+        ],
+      },
+      students: { none: {} },
+    },
+  });
+
+  for (const eg of emptyOldGroups) {
+    await prisma.group.delete({ where: { id: eg.id } });
+    console.log(`🧹 Cleaned up old placeholder: ${eg.name}`);
+  }
+
+  console.log("✅ Database synced successfully!");
+  console.log(`   Group 1: ${juftGroup.name} (${juftStudents.length} students, 14:00 - 16:00)`);
+  console.log(`   Group 2: ${toqGroup.name} (${toqStudents.length} students, 18:00 - 20:00)`);
 }
 
 main()
