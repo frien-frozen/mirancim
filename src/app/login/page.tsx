@@ -82,7 +82,7 @@ export default function LoginPage() {
           <form action={formAction} className="space-y-4">
             {state?.error && (
               <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs text-red-500 font-medium animate-in fade-in-50">
-                {t.login.invalidCreds}
+                {state.error}
               </div>
             )}
 
@@ -99,7 +99,6 @@ export default function LoginPage() {
                 name="username"
                 type="text"
                 required
-                defaultValue="admin"
                 autoComplete="username"
                 className="w-full h-11 rounded-xl border border-border bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all focus:border-foreground/40 focus:ring-1 focus:ring-foreground/20 shadow-2xs"
                 placeholder={isTr ? "admin veya ornek@mirancim.com" : "admin yoki ism@mirancim.uz"}
@@ -120,7 +119,6 @@ export default function LoginPage() {
                   name="password"
                   type={showPassword ? "text" : "password"}
                   required
-                  defaultValue="admin123"
                   autoComplete="current-password"
                   className="w-full h-11 rounded-xl border border-border bg-card px-3.5 pr-10 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all focus:border-foreground/40 focus:ring-1 focus:ring-foreground/20 shadow-2xs"
                   placeholder="••••••••"
