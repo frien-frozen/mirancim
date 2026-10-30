@@ -99,6 +99,8 @@ export default function LoginPage() {
                 name="username"
                 type="text"
                 required
+                maxLength={50}
+                spellCheck={false}
                 autoComplete="username"
                 className="w-full h-11 rounded-xl border border-border bg-card px-3.5 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all focus:border-foreground/40 focus:ring-1 focus:ring-foreground/20 shadow-2xs"
                 placeholder={isTr ? "admin veya ornek@mirancim.com" : "admin yoki ism@mirancim.uz"}
@@ -119,6 +121,7 @@ export default function LoginPage() {
                   name="password"
                   type={showPassword ? "text" : "password"}
                   required
+                  maxLength={128}
                   autoComplete="current-password"
                   className="w-full h-11 rounded-xl border border-border bg-card px-3.5 pr-10 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-all focus:border-foreground/40 focus:ring-1 focus:ring-foreground/20 shadow-2xs"
                   placeholder="••••••••"

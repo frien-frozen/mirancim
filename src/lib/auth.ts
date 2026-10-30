@@ -1,11 +1,19 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import type { Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import {
+  sanitizeAndValidateUsername,
+  validatePassword,
+  checkRateLimit,
+  recordFailedAttempt,
+  resetRateLimit,
+  performTimingDummyCheck,
+} from "@/lib/security";
 
 const JWT_SECRET = process.env.JWT_SECRET || "miran-lms-secret-key-change-in-production";
 
@@ -20,13 +28,40 @@ export async function login(
   _prevState: { error?: string } | null,
   formData: FormData
 ) {
-  const username = (formData.get("username") as string)?.trim().toLowerCase();
-  const password = formData.get("password") as string;
+  // 1. Resolve client IP for rate limiting
+  const headersList = await headers();
+  const forwardedFor = headersList.get("x-forwarded-for");
+  const clientIp = forwardedFor ? forwardedFor.split(",")[0].trim() : headersList.get("x-real-ip") || "unknown";
 
-  if (!username || !password) {
-    return { error: "Foydalanuvchi nomi va parol kiritilishi shart" };
+  // 2. Check rate limit
+  const rateLimitKey = `login:${clientIp}`;
+  const rateLimit = checkRateLimit(rateLimitKey);
+  if (!rateLimit.allowed) {
+    return {
+      error: `Xavfsizlik tizimi: Ko'p marta xato urinishlar qilindi. Iltimos, ${rateLimit.retryAfterMinutes} daqiqadan so'ng qayta urinib ko'ring.`,
+    };
   }
 
+  // 3. Extract, sanitize, and validate inputs
+  const rawUsername = formData.get("username");
+  const rawPassword = formData.get("password");
+
+  const validUsername = sanitizeAndValidateUsername(rawUsername);
+  if (!validUsername.valid) {
+    recordFailedAttempt(rateLimitKey);
+    return { error: validUsername.error || "Foydalanuvchi nomi noto'g'ri kiritildi" };
+  }
+
+  const validPassword = validatePassword(rawPassword);
+  if (!validPassword.valid) {
+    recordFailedAttempt(rateLimitKey);
+    return { error: validPassword.error || "Parol noto'g'ri kiritildi" };
+  }
+
+  const username = validUsername.username;
+  const password = validPassword.password;
+
+  // 4. Look up user in database with error boundary
   let user: {
     id: string;
     name: string;
@@ -36,7 +71,6 @@ export async function login(
   } | null = null;
 
   try {
-    // Look up user in Prisma Postgres database
     user = await prisma.user.findFirst({
       where: {
         username: {
@@ -47,48 +81,48 @@ export async function login(
     });
   } catch (dbErr) {
     console.error("Database connection error during login:", dbErr);
-    // If DB is temporarily unreachable and credentials match default admin, provide safe fallback
-    if (username === "admin" && password === "admin123") {
-      user = {
-        id: "usr-admin",
-        name: "Tutor Admin",
-        username: "admin",
-        role: "ADMIN",
-        password: "admin123",
-      };
-    } else {
-      return {
-        error:
-          "Ma'lumotlar bazasiga ulanishda xatolik yuz berdi. Iltimos, Vercel sozlamalarida DATABASE_URL to'g'ri sozlanganligini tekshiring.",
-      };
-    }
+    return {
+      error:
+        "Ma'lumotlar bazasiga ulanib bo'lmadi. Vercel boshqaruv panelida DATABASE_URL to'g'ri kiritilganligini tekshiring.",
+    };
   }
 
-  if (!user) {
+  // 5. If user not found, perform dummy check to prevent timing attacks / username enumeration
+  if (!user || !user.password) {
+    await performTimingDummyCheck(password);
+    recordFailedAttempt(rateLimitKey);
     return { error: "Foydalanuvchi nomi yoki parol noto'g'ri" };
   }
 
-  // Verify password using bcrypt or plain text fallback
+  // 6. Secure password verification (bcrypt constant-time comparison)
   let isMatch = false;
   try {
-    isMatch =
-      (await bcrypt.compare(password, user.password || "").catch(() => false)) ||
-      user.password === password;
+    isMatch = await bcrypt.compare(password, user.password);
   } catch {
-    isMatch = user.password === password;
+    isMatch = false;
   }
 
   if (!isMatch) {
+    recordFailedAttempt(rateLimitKey);
     return { error: "Foydalanuvchi nomi yoki parol noto'g'ri" };
   }
 
-  // Issue token & set session cookie
+  // 7. Successful login - clear rate limit
+  resetRateLimit(rateLimitKey);
+
+  // 8. Issue cryptographic JWT token
   const token = jwt.sign(
-    { id: user.id, name: user.name, username: user.username, role: user.role },
+    {
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      role: user.role,
+    },
     JWT_SECRET,
     { expiresIn: "7d" }
   );
 
+  // 9. Store secure session cookie
   const cookieStore = await cookies();
   cookieStore.set("token", token, {
     httpOnly: true,
